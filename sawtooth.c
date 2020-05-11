@@ -9,6 +9,8 @@
 
 #define die_if(pred, action) if (pred) { (action); shutdown_app(EXIT_FAILURE); }
 
+#define WAVETABLE_SIZE 256
+
 typedef struct JackState {
     jack_port_t *leftPort, *rightPort;
     jack_client_t *client;
@@ -21,9 +23,35 @@ typedef struct XcbState {
     xcb_gcontext_t bgContext;
 } XcbState;
 
+typedef struct WavetableSample {
+    float val;
+    float offset;
+} WavetableSample;
+
+void scan_wavetable(float *wavetable, float wavelength, WavetableSample *sample)
+{
+    sample->offset += (float)WAVETABLE_SIZE / wavelength;
+    if (sample->offset >= 256) {
+        sample->offset -= 256;
+    }
+    int integerPart = (int)sample->offset;
+    int decimalPart = integerPart - sample->offset;
+
+    float lowerBound = wavetable[integerPart];
+    float upperBound = integerPart > 255? wavetable[0] : wavetable[integerPart +1];
+
+    sample->val = lowerBound + (decimalPart * (upperBound - lowerBound));
+}
+
+
+int samplerateHz;
+float sawWavetable[WAVETABLE_SIZE];
+WavetableSample wtsample;
 
 JackState jackState;
 XcbState xcbState;
+
+FILE *debugLog;
 
 int isShuttingDown = 0;
 
@@ -34,15 +62,18 @@ int process(jack_nframes_t nframes, void *arg)
     leftChannel = (jack_default_audio_sample_t *)jack_port_get_buffer(jackState.leftPort, nframes);
     rightChannel = (jack_default_audio_sample_t *)jack_port_get_buffer(jackState.rightPort, nframes);
 
-    FILE * pFile;
-    pFile = fopen ("log","wa");
-    printf("nframes: %d\n", nframes);
+
+    //printf("nframes: %d\n", nframes);
     float val = 0.0f;
+    float pitchHz = 440;
+    float wavelengthHz = samplerateHz / pitchHz;
     for (int i = 0; i < nframes; ++i) {
         val = (float)rand() / RAND_MAX;
+        scan_wavetable(sawWavetable, wavelengthHz, &wtsample);
+        val = wtsample.val;
         leftChannel[i] = val;
         rightChannel[i] = val;
-        fprintf(pFile, "%d %f\n", i%256 * 2, leftChannel[i]);
+        fprintf(debugLog, "%d %f\n", i%256 * 2, leftChannel[i]);
         xcb_point_t line[2];
 
         line[0].x = i;
@@ -91,16 +122,21 @@ void shutdown_app(int exitStatus)
     if (NULL != jackState.client) {
         jack_client_close(jackState.client);
     }
+    fclose(debugLog);
     exit(exitStatus);
 }
 
 int main()
 {
-    AppState appState;
+    // TODO: Get samplerate from Jack server.
+    samplerateHz = 48000;
     /* Open the connection to the X server */
     xcbState.connection = xcb_connect (NULL, NULL);
     uint32_t xcbvals[2];
+    wtsample.val = 0.0f;
+    wtsample.offset = 0.0f;
 
+    debugLog = fopen ("log","w");
 
     /* Get the first screen */
     const xcb_setup_t      *setup  = xcb_get_setup(xcbState.connection);
@@ -211,6 +247,10 @@ int main()
 	}
 
 	free (ports);
+
+    for (int x = 0; x < WAVETABLE_SIZE; ++x) {
+        sawWavetable[x] = (float)x / WAVETABLE_SIZE;
+    }
 
     struct sigaction sigTermHandler;
     sigTermHandler.sa_handler = sigterm_action;
