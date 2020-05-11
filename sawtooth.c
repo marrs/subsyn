@@ -13,6 +13,9 @@ typedef struct {
     jack_port_t *leftPort, *rightPort;
     jack_client_t *jackClient;
     xcb_connection_t *xcbConnection;
+    xcb_window_t xcbWindow;
+    xcb_gcontext_t xcbFgContext;
+    xcb_gcontext_t xcbBgContext;
 } AppState;
 
 int isShuttingDown = 0;
@@ -27,13 +30,40 @@ int process(jack_nframes_t nframes, void *arg)
 
     FILE * pFile;
     pFile = fopen ("log","wa");
+    printf("nframes: %d\n", nframes);
     float val = 0.0f;
     for (int i = 0; i < nframes; ++i) {
         val = (float)rand() / RAND_MAX;
         leftChannel[i] = val;
         rightChannel[i] = val;
-        fprintf(pFile, "%f\n", leftChannel[i]);
+        fprintf(pFile, "%d %f\n", i%256 * 2, leftChannel[i]);
+        xcb_point_t line[2];
+
+        line[0].x = i;
+        line[0].y = 0;
+        line[1].x = i;
+        line[1].y = 10 + 10*val;
+
+        xcb_poly_line (appState->xcbConnection,
+                       XCB_COORD_MODE_ORIGIN,
+                       appState->xcbWindow,
+                       appState->xcbFgContext,
+                       2,
+                       line);
+
+        line[0].x = i;
+        line[0].y = 10 + 10*val;
+        line[1].x = i;
+        line[1].y = 255;
+
+        xcb_poly_line (appState->xcbConnection,
+                       XCB_COORD_MODE_ORIGIN,
+                       appState->xcbWindow,
+                       appState->xcbBgContext,
+                       2,
+                       line);
     }
+    xcb_flush (appState->xcbConnection);
     fclose (pFile);
     return 0;
 }
@@ -64,8 +94,8 @@ int main()
 {
     AppState appState;
     /* Open the connection to the X server */
-    appState.xcbConnection = NULL;
     appState.xcbConnection = xcb_connect (NULL, NULL);
+    uint32_t xcbvals[2];
 
 
     /* Get the first screen */
@@ -73,23 +103,48 @@ int main()
     xcb_screen_iterator_t   iter   = xcb_setup_roots_iterator (setup);
     xcb_screen_t           *screen = iter.data;
 
+    appState.xcbFgContext = xcb_generate_id(appState.xcbConnection);
+    xcbvals[0]  = screen->white_pixel;
+    xcbvals[1] = 0;
+
+    xcb_create_gc (appState.xcbConnection,
+                   appState.xcbFgContext,
+                   screen->root,
+                   XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES,
+                   xcbvals);
+
+    appState.xcbBgContext = xcb_generate_id(appState.xcbConnection);
+    xcbvals[0]  = screen->black_pixel;
+    xcbvals[1] = 0;
+
+    xcb_create_gc (appState.xcbConnection,
+                   appState.xcbBgContext,
+                   screen->root,
+                   XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES,
+                   xcbvals);
+
+    xcbvals[0] = screen->black_pixel;
+    xcbvals[1] = XCB_EVENT_MASK_EXPOSURE;
 
     /* Create the window */
-    xcb_window_t window = xcb_generate_id (appState.xcbConnection);
+    appState.xcbWindow = xcb_generate_id (appState.xcbConnection);
     xcb_create_window (appState.xcbConnection,        /* Connection          */
                        XCB_COPY_FROM_PARENT,          /* depth (same as root)*/
-                       window,                        /* window Id           */
+                       appState.xcbWindow,            /* window Id           */
                        screen->root,                  /* parent window       */
                        0, 0,                          /* x, y                */
-                       150, 150,                      /* width, height       */
+                       256, 256,                      /* width, height       */
                        10,                            /* border_width        */
                        XCB_WINDOW_CLASS_INPUT_OUTPUT, /* class               */
                        screen->root_visual,           /* visual              */
-                       0, NULL );                     /* masks, not used yet */
+                       XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK,
+                       xcbvals );
 
 
     /* Map the window on the screen */
-    xcb_map_window (appState.xcbConnection, window);
+    xcb_map_window (appState.xcbConnection, appState.xcbWindow);
+
+    // Create drawing context
 
 
     /* Make sure commands are sent before we pause so that the window gets shown */
