@@ -9,7 +9,7 @@
 
 #define die_if(pred, action) if (pred) { (action); shutdown_app(EXIT_FAILURE); }
 
-#define WAVETABLE_SIZE 256
+#include "wavetable.c"
 
 typedef struct JackState {
     jack_port_t *leftPort, *rightPort;
@@ -23,29 +23,17 @@ typedef struct XcbState {
     xcb_gcontext_t bgContext;
 } XcbState;
 
-typedef struct WavetableSample {
-    float val;
-    float offset;
-} WavetableSample;
+typedef enum Generator {
+    GEN_Noise = 0,
+    GEN_Sawtooth,
+    GEN_Pulse,
+    GEN_Sine
+} Generator;
 
-void scan_wavetable(float *wavetable, float wavelength, WavetableSample *sample)
-{
-    sample->offset += (float)WAVETABLE_SIZE / wavelength;
-    if (sample->offset >= 256) {
-        sample->offset -= 256;
-    }
-    int integerPart = (int)sample->offset;
-    int decimalPart = integerPart - sample->offset;
-
-    float lowerBound = wavetable[integerPart];
-    float upperBound = integerPart > 255? wavetable[0] : wavetable[integerPart +1];
-
-    sample->val = lowerBound + (decimalPart * (upperBound - lowerBound));
-}
-
-
+//Generator selectedGenerator = GEN_Noise;
+//Generator selectedGenerator = GEN_Sawtooth;
+Generator selectedGenerator = GEN_Pulse;
 int samplerateHz;
-float sawWavetable[WAVETABLE_SIZE];
 WavetableSample wtsample;
 
 JackState jackState;
@@ -66,9 +54,15 @@ int process(jack_nframes_t nframes, void *arg)
     float pitchHz = 440;
     float wavelengthHz = samplerateHz / pitchHz;
     for (int i = 0; i < nframes; ++i) {
-        val = (float)rand() / RAND_MAX;
-        scan_wavetable(sawWavetable, wavelengthHz, &wtsample);
-        val = wtsample.val;
+        if (selectedGenerator == GEN_Noise) {
+            val = (float)rand() / RAND_MAX;
+        } else if (selectedGenerator == GEN_Pulse) {
+            scan_wavetable(pulseWavetable, wavelengthHz, &wtsample);
+            val = wtsample.val;
+        } else {
+            scan_wavetable(sawWavetable, wavelengthHz, &wtsample);
+            val = wtsample.val;
+        }
         leftChannel[i] = val;
         rightChannel[i] = val;
         fprintf(debugLog, "%d %f\n", i%256 * 2, leftChannel[i]);
@@ -246,9 +240,7 @@ int main()
 
 	free (ports);
 
-    for (int x = 0; x < WAVETABLE_SIZE; ++x) {
-        sawWavetable[x] = (float)x / WAVETABLE_SIZE;
-    }
+    init_wavetables();
 
     struct sigaction sigTermHandler;
     sigTermHandler.sa_handler = sigterm_action;
