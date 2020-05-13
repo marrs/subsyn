@@ -1,1 +1,2 @@
 alias m="gcc -g -lxcb -ljack -pthread subsyn.c"
+alias a="gcc -g -lxcb -o analyzer  analyzer.c && ./analyzer"

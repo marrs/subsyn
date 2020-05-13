@@ -43,9 +43,4 @@ void init_wavetables()
     oloop(x, WAVETABLE_SIZE/2, WAVETABLE_SIZE) {
         triWavetable[x] = 1.0f - (float)(x-WAVETABLE_SIZE /2) / WAVETABLE_SIZE*2;
     }
-
-    loop(x, WAVETABLE_SIZE) {
-        printf("x%d: %f\n", x, triWavetable[x]);
-    }
-
 }

@@ -7,23 +7,18 @@
 #include <jack/jack.h>
 #include <xcb/xcb.h>
 
+#include "macro-utils.h"
 #define die_if(pred, action) if (pred) { (action); shutdown_app(EXIT_FAILURE); }
-#define loop(i, len) for (int i = 0; i < (len); ++i)
-#define oloop(i, start, len) for (int i = (start); i < (len); ++i)
 
+#include "xcb.h"
 #include "wavetable.c"
+
+#include "chart.c"
 
 typedef struct JackState {
     jack_port_t *leftPort, *rightPort;
     jack_client_t *client;
 } JackState;
-
-typedef struct XcbState {
-    xcb_connection_t *connection;
-    xcb_window_t window;
-    xcb_gcontext_t fgContext;
-    xcb_gcontext_t bgContext;
-} XcbState;
 
 typedef enum Generator {
     GEN_Noise = 0,
@@ -54,7 +49,7 @@ int process(jack_nframes_t nframes, void *arg)
     float val = 0.0f;
     float pitchHz = 440;
     float wavelengthHz = samplerateHz / pitchHz;
-    for (int i = 0; i < nframes; ++i) {
+    loop(i, nframes) {
         if (uiSelectedGenerator == GEN_Noise) {
             val = (float)rand() / RAND_MAX;
         } else if (uiSelectedGenerator == GEN_Pulse) {
@@ -69,32 +64,10 @@ int process(jack_nframes_t nframes, void *arg)
         }
         leftChannel[i] = val;
         rightChannel[i] = val;
-        fprintf(debugLog, "%d %f\n", i%256 * 2, leftChannel[i]);
-        xcb_point_t line[2];
+        fprintf(debugLog, "%d %f\n", i%256 * 2, val);
 
-        line[0].x = i;
-        line[0].y = 0;
-        line[1].x = i;
-        line[1].y = 200*val;
+        plot_sample(xcbState, i, val, NULL);
 
-        xcb_poly_line (xcbState.connection,
-                       XCB_COORD_MODE_ORIGIN,
-                       xcbState.window,
-                       xcbState.fgContext,
-                       2,
-                       line);
-
-        line[0].x = i;
-        line[0].y = 200*val;
-        line[1].x = i;
-        line[1].y = 255;
-
-        xcb_poly_line (xcbState.connection,
-                       XCB_COORD_MODE_ORIGIN,
-                       xcbState.window,
-                       xcbState.bgContext,
-                       2,
-                       line);
     }
     xcb_flush (xcbState.connection);
     return 0;
