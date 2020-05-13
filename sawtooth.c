@@ -62,8 +62,6 @@ int process(jack_nframes_t nframes, void *arg)
     leftChannel = (jack_default_audio_sample_t *)jack_port_get_buffer(jackState.leftPort, nframes);
     rightChannel = (jack_default_audio_sample_t *)jack_port_get_buffer(jackState.rightPort, nframes);
 
-
-    //printf("nframes: %d\n", nframes);
     float val = 0.0f;
     float pitchHz = 440;
     float wavelengthHz = samplerateHz / pitchHz;
@@ -79,7 +77,7 @@ int process(jack_nframes_t nframes, void *arg)
         line[0].x = i;
         line[0].y = 0;
         line[1].x = i;
-        line[1].y = 10 + 10*val;
+        line[1].y = 200*val;
 
         xcb_poly_line (xcbState.connection,
                        XCB_COORD_MODE_ORIGIN,
@@ -89,7 +87,7 @@ int process(jack_nframes_t nframes, void *arg)
                        line);
 
         line[0].x = i;
-        line[0].y = 10 + 10*val;
+        line[0].y = 200*val;
         line[1].x = i;
         line[1].y = 255;
 
@@ -219,14 +217,14 @@ int main()
     jack_set_process_callback(jackClient, process, &jackState);
 
     jackState.leftPort = jack_port_register(jackClient,
-                                             "leftChannel",
-					                         JACK_DEFAULT_AUDIO_TYPE,
-					                         JackPortIsOutput, 0);
+                                            "leftChannel",
+                                            JACK_DEFAULT_AUDIO_TYPE,
+                                            JackPortIsOutput, 0);
 
     jackState.rightPort = jack_port_register(jackClient,
-                                              "rightChannel",
-					                          JACK_DEFAULT_AUDIO_TYPE,
-					                          JackPortIsOutput, 0);
+                                             "rightChannel",
+                                             JACK_DEFAULT_AUDIO_TYPE,
+                                             JackPortIsOutput, 0);
 
     die_if(NULL == jackState.leftPort || NULL == jackState.rightPort,
             fprintf(stderr, "Could not connect to Jack")
