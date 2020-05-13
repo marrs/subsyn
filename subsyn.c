@@ -30,9 +30,7 @@ typedef enum Generator {
     GEN_Sine
 } Generator;
 
-//Generator selectedGenerator = GEN_Noise;
-//Generator selectedGenerator = GEN_Sawtooth;
-Generator selectedGenerator = GEN_Pulse;
+Generator uiSelectedGenerator = GEN_Noise;
 int samplerateHz;
 WavetableSample wtsample;
 
@@ -54,9 +52,9 @@ int process(jack_nframes_t nframes, void *arg)
     float pitchHz = 440;
     float wavelengthHz = samplerateHz / pitchHz;
     for (int i = 0; i < nframes; ++i) {
-        if (selectedGenerator == GEN_Noise) {
+        if (uiSelectedGenerator == GEN_Noise) {
             val = (float)rand() / RAND_MAX;
-        } else if (selectedGenerator == GEN_Pulse) {
+        } else if (uiSelectedGenerator == GEN_Pulse) {
             scan_wavetable(pulseWavetable, wavelengthHz, &wtsample);
             val = wtsample.val;
         } else {
@@ -94,6 +92,27 @@ int process(jack_nframes_t nframes, void *arg)
     }
     xcb_flush (xcbState.connection);
     return 0;
+}
+
+void *ui_thread(void *arg)
+{
+    XcbState *xcbState = (XcbState *)arg;
+    xcb_generic_event_t *event;
+    while (event = xcb_wait_for_event (xcbState->connection)) {
+        switch (event->response_type & ~0x80) {
+            case XCB_KEY_RELEASE: {
+                xcb_key_release_event_t *kr = (xcb_key_release_event_t *)event;
+                //print_modifiers(kr->state);
+                printf ("Key released in window %"PRIu32"\n",
+                        kr->event);
+                switch(uiSelectedGenerator) {
+                    case GEN_Noise: uiSelectedGenerator = GEN_Sawtooth; break;
+                    case GEN_Sawtooth: uiSelectedGenerator = GEN_Pulse; break;
+                    case GEN_Pulse: uiSelectedGenerator = GEN_Noise; break;
+                }
+            } break;
+        }
+    }
 }
 
 void jack_shutdown (void *arg)
@@ -156,7 +175,7 @@ int main()
                    xcbvals);
 
     xcbvals[0] = screen->black_pixel;
-    xcbvals[1] = XCB_EVENT_MASK_EXPOSURE;
+    xcbvals[1] = XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_RELEASE;
 
     /* Create the window */
     xcbState.window = xcb_generate_id (xcbState.connection);
@@ -176,11 +195,12 @@ int main()
     /* Map the window on the screen */
     xcb_map_window (xcbState.connection, xcbState.window);
 
-    // Create drawing context
-
 
     /* Make sure commands are sent before we pause so that the window gets shown */
     xcb_flush (xcbState.connection);
+
+    pthread_t thread[1];
+    int threadReturnCode = pthread_create(thread, NULL, ui_thread, (void *)&xcbState);
 
 
 

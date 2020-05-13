@@ -1,1 +1,1 @@
-alias m="gcc -g -lxcb -ljack subsyn.c"
+alias m="gcc -g -lxcb -ljack -pthread subsyn.c"
