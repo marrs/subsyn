@@ -1,1 +1,1 @@
-alias m="gcc -g -lxcb -ljack sawtooth.c"
+alias m="gcc -g -lxcb -ljack subsyn.c"
