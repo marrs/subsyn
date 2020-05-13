@@ -8,6 +8,8 @@
 #include <xcb/xcb.h>
 
 #define die_if(pred, action) if (pred) { (action); shutdown_app(EXIT_FAILURE); }
+#define loop(i, len) for (int i = 0; i < (len); ++i)
+#define oloop(i, start, len) for (int i = (start); i < (len); ++i)
 
 #include "wavetable.c"
 
@@ -27,6 +29,7 @@ typedef enum Generator {
     GEN_Noise = 0,
     GEN_Sawtooth,
     GEN_Pulse,
+    GEN_Triangle,
     GEN_Sine
 } Generator;
 
@@ -55,7 +58,10 @@ int process(jack_nframes_t nframes, void *arg)
         if (uiSelectedGenerator == GEN_Noise) {
             val = (float)rand() / RAND_MAX;
         } else if (uiSelectedGenerator == GEN_Pulse) {
-            scan_wavetable(pulseWavetable, wavelengthHz, &wtsample);
+            scan_wavetable(plsWavetable, wavelengthHz, &wtsample);
+            val = wtsample.val;
+        } else if (uiSelectedGenerator == GEN_Triangle) {
+            scan_wavetable(triWavetable, wavelengthHz, &wtsample);
             val = wtsample.val;
         } else {
             scan_wavetable(sawWavetable, wavelengthHz, &wtsample);
@@ -108,7 +114,8 @@ void *ui_thread(void *arg)
                 switch(uiSelectedGenerator) {
                     case GEN_Noise: uiSelectedGenerator = GEN_Sawtooth; break;
                     case GEN_Sawtooth: uiSelectedGenerator = GEN_Pulse; break;
-                    case GEN_Pulse: uiSelectedGenerator = GEN_Noise; break;
+                    case GEN_Pulse: uiSelectedGenerator = GEN_Triangle; break;
+                    case GEN_Triangle: uiSelectedGenerator = GEN_Noise; break;
                 }
             } break;
         }

@@ -21,18 +21,31 @@ void scan_wavetable(float *wavetable, float wavelength, WavetableSample *sample)
 }
 
 float sawWavetable[WAVETABLE_SIZE];
-float pulseWavetable[WAVETABLE_SIZE];
+float plsWavetable[WAVETABLE_SIZE];
+float triWavetable[WAVETABLE_SIZE];
 
 void init_wavetables()
 {
-    for (int x = 0; x < WAVETABLE_SIZE; ++x) {
+    loop(x, WAVETABLE_SIZE) {
         sawWavetable[x] = (float)x / WAVETABLE_SIZE;
     }
 
-    for (int x = 0; x < WAVETABLE_SIZE /2; ++x) {
-        pulseWavetable[x] = 0.0f;
+    loop(x, WAVETABLE_SIZE/2) {
+        plsWavetable[x] = 0.0f;
     }
-    for (int x = WAVETABLE_SIZE /2; x < WAVETABLE_SIZE; ++x) {
-        pulseWavetable[x] = 1.0f;
+    oloop(x, WAVETABLE_SIZE/2, WAVETABLE_SIZE) {
+        plsWavetable[x] = 1.0f;
     }
+
+    loop(x, WAVETABLE_SIZE/2) {
+        triWavetable[x] = (float)x / WAVETABLE_SIZE*2;
+    }
+    oloop(x, WAVETABLE_SIZE/2, WAVETABLE_SIZE) {
+        triWavetable[x] = 1.0f - (float)(x-WAVETABLE_SIZE /2) / WAVETABLE_SIZE*2;
+    }
+
+    loop(x, WAVETABLE_SIZE) {
+        printf("x%d: %f\n", x, triWavetable[x]);
+    }
+
 }
