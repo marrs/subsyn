@@ -1,3 +1,4 @@
+#include <math.h>
 #define WAVETABLE_SIZE 256
 
 typedef struct WavetableSample {
@@ -20,27 +21,32 @@ void scan_wavetable(float *wavetable, float wavelength, WavetableSample *sample)
     sample->val = lowerBound + (decimalPart * (upperBound - lowerBound));
 }
 
+float sinWavetable[WAVETABLE_SIZE];
 float sawWavetable[WAVETABLE_SIZE];
-float plsWavetable[WAVETABLE_SIZE];
+float pulWavetable[WAVETABLE_SIZE];
 float triWavetable[WAVETABLE_SIZE];
 
 void init_wavetables()
 {
     loop(x, WAVETABLE_SIZE) {
-        sawWavetable[x] = (float)x / WAVETABLE_SIZE;
+        sinWavetable[x] = sin(((float)x / WAVETABLE_SIZE) * TWO_PI) * 0.5f;
+    }
+
+    loop(x, WAVETABLE_SIZE) {
+        sawWavetable[x] = ((float)x / WAVETABLE_SIZE) - 0.5f;
     }
 
     loop(x, WAVETABLE_SIZE/2) {
-        plsWavetable[x] = 0.0f;
+        pulWavetable[x] = -0.5f;
     }
     oloop(x, WAVETABLE_SIZE/2, WAVETABLE_SIZE) {
-        plsWavetable[x] = 1.0f;
+        pulWavetable[x] = 0.5f;
     }
 
     loop(x, WAVETABLE_SIZE/2) {
-        triWavetable[x] = (float)x / WAVETABLE_SIZE*2;
+        triWavetable[x] = ((float)x / WAVETABLE_SIZE*2) - 0.5f;
     }
     oloop(x, WAVETABLE_SIZE/2, WAVETABLE_SIZE) {
-        triWavetable[x] = 1.0f - (float)(x-WAVETABLE_SIZE /2) / WAVETABLE_SIZE*2;
+        triWavetable[x] = 0.5f - (float)(x-WAVETABLE_SIZE /2) / WAVETABLE_SIZE*2;
     }
 }

@@ -53,14 +53,14 @@ int process(jack_nframes_t nframes, void *arg)
         if (uiSelectedGenerator == GEN_Noise) {
             val = (float)rand() / RAND_MAX;
         } else if (uiSelectedGenerator == GEN_Pulse) {
-            scan_wavetable(plsWavetable, wavelengthHz, &wtsample);
-            val = wtsample.val;
+            scan_wavetable(pulWavetable, wavelengthHz, &wtsample);
+            val = 0.5 + wtsample.val;
         } else if (uiSelectedGenerator == GEN_Triangle) {
             scan_wavetable(triWavetable, wavelengthHz, &wtsample);
-            val = wtsample.val;
+            val = 0.5 + wtsample.val;
         } else {
             scan_wavetable(sawWavetable, wavelengthHz, &wtsample);
-            val = wtsample.val;
+            val = 0.5 + wtsample.val;
         }
         leftChannel[i] = val;
         rightChannel[i] = val;
