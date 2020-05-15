@@ -157,6 +157,13 @@ int main()
     dftPul.im = dftPulIm;
     dftPul.length = 127;
 
+    FDomain dftTri;
+    float dftTriRe[127];
+    float dftTriIm[127];
+    dftTri.re = dftTriRe;
+    dftTri.im = dftTriIm;
+    dftTri.length = 127;
+
     float signalSamples[WAVETABLE_SIZE];
     TDomain signal;
     signal.samples = signalSamples;
@@ -171,10 +178,9 @@ int main()
     loop(x, WAVETABLE_SIZE) { signalSamples[x] = pulWavetable[x]; }
     dft(dftPul, signal);
 
-    loop(x, WAVETABLE_SIZE) {
-            printf("pul wt %d %f\n", x, pulWavetable[x]);
-    }
-    
+    loop(x, WAVETABLE_SIZE) { signalSamples[x] = triWavetable[x]; }
+    dft(dftTri, signal);
+
     PlotParams params;
     params.height = 100;
 
@@ -199,6 +205,12 @@ int main()
         signal.samples = pulWavetable;
         plot_tdomain(2, signal);
         plot_fdomain(2, dftPul);
+        xcb_flush (xcbState.connection);
+
+        // Triangle wave, time and freq domains.
+        signal.samples = triWavetable;
+        plot_tdomain(3, signal);
+        plot_fdomain(3, dftTri);
         xcb_flush (xcbState.connection);
     }
 
