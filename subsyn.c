@@ -6,6 +6,7 @@
 #include <time.h>
 #include <jack/jack.h>
 #include <xcb/xcb.h>
+#include <gtk/gtk.h>
 
 #include "macro-utils.h"
 #define die_if(pred, action) if (pred) { (action); shutdown_app(EXIT_FAILURE); }
@@ -100,12 +101,7 @@ void jack_shutdown (void *arg)
     jackState.client = NULL;
 }
 
-void sigterm_action(int signum)
-{
-    isShuttingDown = 1;
-}
-
-void shutdown_app(int exitStatus)
+void on_shutdown()
 {
     if (NULL != xcbState.connection) {
         xcb_disconnect (xcbState.connection);
@@ -114,11 +110,25 @@ void shutdown_app(int exitStatus)
         jack_client_close(jackState.client);
     }
     fclose(debugLog);
+}
+
+void shutdown_app(int exitStatus)
+{
+    on_shutdown();
     exit(exitStatus);
 }
 
-int main()
+void on_activate (GtkApplication *app)
 {
+    // Create a new window
+    GtkWidget *window = gtk_application_window_new (app);
+    // Create a new button
+    GtkWidget *button = gtk_button_new_with_label ("Hello, World!");
+    // When the button is clicked, destroy the window passed as an argument
+    g_signal_connect_swapped (button, "clicked", G_CALLBACK (gtk_widget_destroy), window);
+    gtk_container_add (GTK_CONTAINER (window), button);
+    gtk_widget_show_all (window);
+
     // TODO: Get samplerate from Jack server.
     samplerateHz = 48000;
     /* Open the connection to the X server */
@@ -242,19 +252,18 @@ int main()
 
     init_wavetables();
 
-    struct sigaction sigTermHandler;
-    sigTermHandler.sa_handler = sigterm_action;
-    sigaction(SIGTERM, &sigTermHandler, NULL);
-
-    for (;;) {
-        sleep(1);
-        if (isShuttingDown) shutdown_app(EXIT_SUCCESS);
-    }
-
     
 
     jack_on_shutdown(jackClient, jack_shutdown, &jackState);
 
 
-    return 0;
+}
+
+int main(int argc, char **argv)
+{
+     GtkApplication *app = gtk_application_new ("com.example.GtkApplication",
+                                             G_APPLICATION_FLAGS_NONE);
+     g_signal_connect (app, "activate", G_CALLBACK (on_activate), NULL);
+     g_signal_connect (app, "shutdown", G_CALLBACK (on_shutdown), NULL);
+    return g_application_run (G_APPLICATION (app), argc, argv);
 }

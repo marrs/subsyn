@@ -1,2 +1,2 @@
-alias m="gcc -g -lxcb -lm -ljack -pthread subsyn.c"
+alias m="gcc -g `pkg-config --libs --cflags gtk+-3.0` -lxcb -lm -ljack -pthread subsyn.c"
 alias a="gcc -g -lxcb -lm -o analyzer  analyzer.c && ./analyzer"
