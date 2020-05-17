@@ -118,15 +118,28 @@ void shutdown_app(int exitStatus)
     exit(exitStatus);
 }
 
+gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer data) {
+    if (event->keyval == GDK_KEY_space){
+        printf("SPACE KEY PRESSED!");
+        switch(uiSelectedGenerator) {
+            case GEN_Noise: uiSelectedGenerator = GEN_Sawtooth; break;
+            case GEN_Sawtooth: uiSelectedGenerator = GEN_Pulse; break;
+            case GEN_Pulse: uiSelectedGenerator = GEN_Triangle; break;
+            case GEN_Triangle: uiSelectedGenerator = GEN_Noise; break;
+        }
+        return TRUE;
+    }
+    return FALSE;
+}
+
 void on_activate (GtkApplication *app)
 {
-    // Create a new window
-    GtkWidget *window = gtk_application_window_new (app);
-    // Create a new button
-    GtkWidget *button = gtk_button_new_with_label ("Hello, World!");
-    // When the button is clicked, destroy the window passed as an argument
-    g_signal_connect_swapped (button, "clicked", G_CALLBACK (gtk_widget_destroy), window);
-    gtk_container_add (GTK_CONTAINER (window), button);
+    GtkWidget *window = gtk_application_window_new(app);
+    gtk_widget_add_events(window, GDK_KEY_PRESS_MASK);
+    g_signal_connect(G_OBJECT(window),
+                     "key_press_event",
+                     G_CALLBACK(on_key_press),
+                     NULL);
     gtk_widget_show_all (window);
 
     // TODO: Get samplerate from Jack server.
