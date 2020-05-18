@@ -21,9 +21,6 @@ void dft(FDomain fDomain, TDomain signal)
             fDomain.re[x] = fDomain.re[x] + signal.samples[xx] * cos(2 * M_PI * x * xx / signal.length);
             fDomain.im[x] = fDomain.im[x] + signal.samples[xx] * sin(2 * M_PI * x * xx / signal.length);
         }
-        // XXX Is it correct to take the absolute value?
-        //fDomain.re[x] = fabsf(fDomain.re[x] / ((fDomain.length + 1) / 2));
-        //fDomain.im[x] = fabsf(fDomain.im[x] / ((fDomain.length + 1) / 2));
         fDomain.re[x] = fDomain.re[x] / ((fDomain.length + 1) / 2);
         fDomain.im[x] = fDomain.im[x] / ((fDomain.length + 1) / 2);
     }

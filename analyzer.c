@@ -40,12 +40,12 @@ void plot_fdomain(int row, FDomain ft)
     loop (x, ft.length) {
         params.xOffset = grid_col(2);
         params.yOffset = (row * 128) + (row * gridGutterSize) + gridGutterSize;
-        plot_sample(xcbState, x, ft.re[x], &params);
+        plot_sample(xcbState, x, fabsf(ft.re[x]), &params);
     }
     loop (x, ft.length) {
         params.xOffset = grid_col(2) + gridGutterSize + (gridColumnWidth /2);
         params.yOffset = (row * 128) + (row * gridGutterSize) + gridGutterSize;
-        plot_sample(xcbState, x, ft.im[x], &params);
+        plot_sample(xcbState, x, fabsf(ft.im[x]), &params);
     }
 }
 
