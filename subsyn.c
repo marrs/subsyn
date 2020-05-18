@@ -30,6 +30,7 @@ typedef enum Generator {
 } Generator;
 
 Generator uiSelectedGenerator = GEN_Noise;
+float uiVolume = 1.0f;
 int samplerateHz;
 WavetableSample wtsample;
 
@@ -40,7 +41,7 @@ FILE *debugLog;
 
 int isShuttingDown = 0;
 
-int process(jack_nframes_t nframes, void *arg)
+int process_audio(jack_nframes_t nframes, void *arg)
 {
     jack_default_audio_sample_t *leftChannel, *rightChannel;
 
@@ -63,6 +64,7 @@ int process(jack_nframes_t nframes, void *arg)
             scan_wavetable(sawWavetable, wavelengthHz, &wtsample);
             val = 0.5 + wtsample.val;
         }
+        val *= uiVolume;
         leftChannel[i] = val;
         rightChannel[i] = val;
         fprintf(debugLog, "%d %f\n", i%256 * 2, val);
@@ -120,7 +122,6 @@ void shutdown_app(int exitStatus)
 
 gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer data) {
     if (event->keyval == GDK_KEY_space){
-        printf("SPACE KEY PRESSED!");
         switch(uiSelectedGenerator) {
             case GEN_Noise: uiSelectedGenerator = GEN_Sawtooth; break;
             case GEN_Sawtooth: uiSelectedGenerator = GEN_Pulse; break;
@@ -132,6 +133,11 @@ gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer data) {
     return FALSE;
 }
 
+void on_volume_change(GtkRange *widget, gpointer data)
+{
+    uiVolume = gtk_range_get_value(widget) / 10;
+}
+
 void on_activate (GtkApplication *app)
 {
     GtkWidget *window = gtk_application_window_new(app);
@@ -140,12 +146,28 @@ void on_activate (GtkApplication *app)
                      "key_press_event",
                      G_CALLBACK(on_key_press),
                      NULL);
+
+    GtkWidget *volumeScale = gtk_scale_new(GTK_ORIENTATION_HORIZONTAL,
+                                           gtk_adjustment_new(
+                                                uiVolume * 10 // val
+                                              , 0  // lower
+                                              , 11 // upper
+                                              , 1 // step inc
+                                              , 1 // page inc
+                                              , 1 // page size
+                                           ));
+    g_signal_connect(G_OBJECT(volumeScale)
+                   , "value-changed"
+                   , G_CALLBACK(on_volume_change)
+                   , NULL);
+
+    gtk_container_add (GTK_CONTAINER (window), volumeScale);
     gtk_widget_show_all (window);
 
     // TODO: Get samplerate from Jack server.
     samplerateHz = 48000;
     /* Open the connection to the X server */
-    xcbState.connection = xcb_connect (NULL, NULL);
+    xcbState.connection = xcb_connect(NULL, NULL);
     uint32_t xcbvals[2];
     wtsample.val = 0.0f;
     wtsample.offset = 0.0f;
@@ -231,7 +253,7 @@ void on_activate (GtkApplication *app)
 		fprintf (stderr, "unique name `%s' assigned\n", jcName);
 	}
 
-    jack_set_process_callback(jackClient, process, &jackState);
+    jack_set_process_callback(jackClient, process_audio, &jackState);
 
     jackState.leftPort = jack_port_register(jackClient,
                                             "leftChannel",
