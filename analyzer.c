@@ -12,7 +12,8 @@
 #include "wavetable.c"
 
 XcbState xcbState;
-int gutterSize = 10;
+const int gridGutterSize = 10;
+const int gridColumnWidth = WAVETABLE_SIZE;
 
 typedef struct FDomain {
     float *re;
@@ -27,17 +28,12 @@ typedef struct TDomain {
 
 void dft(FDomain fDomain, TDomain signal)
 {
-    int totalPoints = signal.length;
-
     loop(x, fDomain.length) {
         fDomain.re[x] = 0.0f;
         fDomain.im[x] = 0.0f;
-    }
-
-    loop(x, fDomain.length) {
         loop(xx, signal.length) {
-            fDomain.re[x] = fDomain.re[x] + signal.samples[xx] * cos(2 * M_PI * x * xx / totalPoints);
-            fDomain.im[x] = fDomain.im[x] + signal.samples[xx] * sin(2 * M_PI * x * xx / totalPoints);
+            fDomain.re[x] = fDomain.re[x] + signal.samples[xx] * cos(2 * M_PI * x * xx / signal.length);
+            fDomain.im[x] = fDomain.im[x] + signal.samples[xx] * sin(2 * M_PI * x * xx / signal.length);
         }
         // XXX Is it correct to take the absolute value?
         fDomain.re[x] = fabsf(fDomain.re[x] / ((fDomain.length + 1) / 2));
@@ -45,13 +41,30 @@ void dft(FDomain fDomain, TDomain signal)
     }
 }
 
-void plot_tdomain(int row, TDomain signal)
+void idft(TDomain signal, FDomain dft)
+{
+    loop(x, signal.length) {
+        signal.samples[x] = 0.0f;
+        loop(xx, dft.length) {
+            signal.samples[x] = signal.samples[x] + dft.re[xx] * cos(2 * M_PI * xx * x / signal.length);
+            signal.samples[x] = signal.samples[x] + dft.im[xx] * sin(2 * M_PI * xx * x / signal.length);
+        }
+        signal.samples[x] /= 2;
+    }
+}
+
+int grid_col(int pos)
+{
+    return (pos * gridGutterSize) + ((pos -1) * gridColumnWidth);
+}
+
+void plot_tdomain(int col, int row, TDomain signal)
 {
     PlotParams params;
     params.height = 128;
     loop(x, signal.length) {
-        params.xOffset = gutterSize;
-        params.yOffset = (row * 128) + (row * gutterSize) + gutterSize;
+        params.xOffset = grid_col(col);
+        params.yOffset = (row * 128) + (row * gridGutterSize) + gridGutterSize;
         plot_sample(xcbState, x, signal.samples[x] + 0.5, &params);
     }
 }
@@ -62,13 +75,13 @@ void plot_fdomain(int row, FDomain ft)
     params.height = 100;
 
     loop (x, ft.length) {
-        params.xOffset = 2 * gutterSize + WAVETABLE_SIZE;
-        params.yOffset = (row * 128) + (row * gutterSize) + gutterSize;
+        params.xOffset = grid_col(2);
+        params.yOffset = (row * 128) + (row * gridGutterSize) + gridGutterSize;
         plot_sample(xcbState, x, ft.re[x], &params);
     }
     loop (x, ft.length) {
-        params.xOffset = 3 * gutterSize +  WAVETABLE_SIZE + ft.length;
-        params.yOffset = (row * 128) + (row * gutterSize) + gutterSize;
+        params.xOffset = grid_col(2) + gridGutterSize + (gridColumnWidth /2);
+        params.yOffset = (row * 128) + (row * gridGutterSize) + gridGutterSize;
         plot_sample(xcbState, x, ft.im[x], &params);
     }
 }
@@ -119,8 +132,8 @@ int main()
                        xcbState.window,               /* window Id           */
                        screen->root,                  /* parent window       */
                        0, 0,                          /* x, y                */
-                       gutterSize*3  + WAVETABLE_SIZE*2, // width
-                       512,                           /*  height       */
+                       grid_col(4), // width
+                       600,                           /*  height       */
                        10,                            /* border_width        */
                        XCB_WINDOW_CLASS_INPUT_OUTPUT, /* class               */
                        screen->root_visual,           /* visual              */
@@ -164,22 +177,27 @@ int main()
     dftTri.im = dftTriIm;
     dftTri.length = 127;
 
-    float signalSamples[WAVETABLE_SIZE];
-    TDomain signal;
-    signal.samples = signalSamples;
-    signal.length = WAVETABLE_SIZE;
+    float sourceSignalSamples[WAVETABLE_SIZE];
+    TDomain sourceSignal;
+    sourceSignal.samples = sourceSignalSamples;
+    sourceSignal.length = WAVETABLE_SIZE;
 
-    loop(x, WAVETABLE_SIZE) { signalSamples[x] = sinWavetable[x]; }
-    dft(dftSin, signal);
+    float processedSignalSamples[WAVETABLE_SIZE];
+    TDomain processedSignal;
+    processedSignal.samples = processedSignalSamples;
+    processedSignal.length = WAVETABLE_SIZE;
 
-    loop(x, WAVETABLE_SIZE) { signalSamples[x] = sawWavetable[x]; }
-    dft(dftSaw, signal);
+    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = sinWavetable[x]; }
+    dft(dftSin, sourceSignal);
 
-    loop(x, WAVETABLE_SIZE) { signalSamples[x] = pulWavetable[x]; }
-    dft(dftPul, signal);
+    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = sawWavetable[x]; }
+    dft(dftSaw, sourceSignal);
 
-    loop(x, WAVETABLE_SIZE) { signalSamples[x] = triWavetable[x]; }
-    dft(dftTri, signal);
+    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = pulWavetable[x]; }
+    dft(dftPul, sourceSignal);
+
+    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = triWavetable[x]; }
+    dft(dftTri, sourceSignal);
 
     PlotParams params;
     params.height = 100;
@@ -192,25 +210,33 @@ int main()
         }
 
         // Sine wave, time and freq domains.
-        signal.samples = sinWavetable;
-        plot_tdomain(0, signal);
+        sourceSignal.samples = sinWavetable;
+        plot_tdomain(1, 0, sourceSignal);
         plot_fdomain(0, dftSin);
+        idft(processedSignal, dftSin);
+        plot_tdomain(3, 0, processedSignal);
 
         // Saw wave, time and freq domains.
-        signal.samples = sawWavetable;
-        plot_tdomain(1, signal);
+        sourceSignal.samples = sawWavetable;
+        plot_tdomain(1, 1, sourceSignal);
         plot_fdomain(1, dftSaw);
+        idft(processedSignal, dftSaw);
+        plot_tdomain(3, 1, processedSignal);
 
         // Pulse wave, time and freq domains.
-        signal.samples = pulWavetable;
-        plot_tdomain(2, signal);
+        sourceSignal.samples = pulWavetable;
+        plot_tdomain(1, 2, sourceSignal);
         plot_fdomain(2, dftPul);
-        xcb_flush (xcbState.connection);
+        idft(processedSignal, dftPul);
+        plot_tdomain(3, 2, processedSignal);
 
         // Triangle wave, time and freq domains.
-        signal.samples = triWavetable;
-        plot_tdomain(3, signal);
+        sourceSignal.samples = triWavetable;
+        plot_tdomain(1, 3, sourceSignal);
         plot_fdomain(3, dftTri);
+        idft(processedSignal, dftTri);
+        plot_tdomain(3, 3, processedSignal);
+
         xcb_flush (xcbState.connection);
     }
 

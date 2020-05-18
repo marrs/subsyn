@@ -4,4 +4,3 @@ typedef struct XcbState {
     xcb_gcontext_t fgContext;
     xcb_gcontext_t bgContext;
 } XcbState;
-
