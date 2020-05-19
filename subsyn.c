@@ -12,6 +12,8 @@
 #define die_if(pred, action) if (pred) { (action); shutdown_app(EXIT_FAILURE); }
 
 #include "xcb.h"
+#include "signal-processors.h"
+#include "signal-processors.c"
 #include "wavetable.c"
 
 #include "chart.c"

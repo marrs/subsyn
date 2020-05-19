@@ -1,16 +1,6 @@
 #include <math.h>
 #include "macro-utils.h"
-
-typedef struct FDomain {
-    float *re;
-    float *im;
-    int length;
-} FDomain;
-
-typedef struct TDomain {
-    float *samples;
-    int length;
-} TDomain;
+#include "signal-processors.h"
 
 void dft(FDomain fDomain, TDomain signal)
 {
@@ -37,4 +27,3 @@ void idft(TDomain signal, FDomain dft)
         signal.samples[x] /= 2;
     }
 }
-
