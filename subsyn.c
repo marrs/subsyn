@@ -23,18 +23,12 @@ typedef struct JackState {
     jack_client_t *client;
 } JackState;
 
-typedef enum Generator {
-    GEN_Noise = 0,
-    GEN_Sawtooth,
-    GEN_Pulse,
-    GEN_Triangle,
-    GEN_Sine
-} Generator;
-
 Generator uiSelectedGenerator = GEN_Noise;
 float uiVolume = 1.0f;
 int samplerateHz;
 WavetableSample wtsample;
+TDomain *uiWavetable = &sawWavetable;
+WavetableType uiWavetableType = WAVT_Wavetable;
 
 JackState jackState;
 XcbState xcbState;
@@ -56,14 +50,8 @@ int process_audio(jack_nframes_t nframes, void *arg)
     loop(i, nframes) {
         if (uiSelectedGenerator == GEN_Noise) {
             val = (float)rand() / RAND_MAX;
-        } else if (uiSelectedGenerator == GEN_Pulse) {
-            scan_wavetable(pulWavetable, wavelengthHz, &wtsample);
-            val = 0.5 + wtsample.val;
-        } else if (uiSelectedGenerator == GEN_Triangle) {
-            scan_wavetable(triWavetable, wavelengthHz, &wtsample);
-            val = 0.5 + wtsample.val;
         } else {
-            scan_wavetable(sawWavetable, wavelengthHz, &wtsample);
+            scan_wavetable(&wtsample, wavelengthHz, uiWavetable);
             val = 0.5 + wtsample.val;
         }
         val *= uiVolume;
@@ -78,7 +66,7 @@ int process_audio(jack_nframes_t nframes, void *arg)
     return 0;
 }
 
-void *ui_thread(void *arg)
+void *xcb_thread(void *arg)
 {
     XcbState *xcbState = (XcbState *)arg;
     xcb_generic_event_t *event;
@@ -89,12 +77,10 @@ void *ui_thread(void *arg)
                 //print_modifiers(kr->state);
                 printf ("Key released in window %"PRIu32"\n",
                         kr->event);
-                switch(uiSelectedGenerator) {
-                    case GEN_Noise: uiSelectedGenerator = GEN_Sawtooth; break;
-                    case GEN_Sawtooth: uiSelectedGenerator = GEN_Pulse; break;
-                    case GEN_Pulse: uiSelectedGenerator = GEN_Triangle; break;
-                    case GEN_Triangle: uiSelectedGenerator = GEN_Noise; break;
-                }
+                cycle_generator(&uiSelectedGenerator);
+                printf("BEFORE %u\n", uiWavetable);
+                select_wavetable(&uiWavetable, uiSelectedGenerator, uiWavetableType);
+                printf("AFTER %u\n", uiWavetable);
             } break;
         }
     }
@@ -122,14 +108,11 @@ void shutdown_app(int exitStatus)
     exit(exitStatus);
 }
 
-gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer data) {
+gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer data)
+{
     if (event->keyval == GDK_KEY_space){
-        switch(uiSelectedGenerator) {
-            case GEN_Noise: uiSelectedGenerator = GEN_Sawtooth; break;
-            case GEN_Sawtooth: uiSelectedGenerator = GEN_Pulse; break;
-            case GEN_Pulse: uiSelectedGenerator = GEN_Triangle; break;
-            case GEN_Triangle: uiSelectedGenerator = GEN_Noise; break;
-        }
+        cycle_generator(&uiSelectedGenerator);
+        select_wavetable(&uiWavetable, uiSelectedGenerator, uiWavetableType);
         return TRUE;
     }
     return FALSE;
@@ -140,9 +123,20 @@ void on_volume_change(GtkRange *widget, gpointer data)
     uiVolume = gtk_range_get_value(widget) / 10;
 }
 
+void on_wavesource_toggle(GtkSwitch *widget, gpointer data)
+{
+    uiWavetableType = (WavetableType)gtk_switch_get_active(widget);
+    select_wavetable(&uiWavetable,
+                     uiSelectedGenerator,
+                     uiWavetableType);
+}
+
 void on_activate (GtkApplication *app)
 {
     GtkWidget *window = gtk_application_window_new(app);
+    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(box));
+
     gtk_widget_add_events(window, GDK_KEY_PRESS_MASK);
     g_signal_connect(G_OBJECT(window),
                      "key_press_event",
@@ -163,7 +157,15 @@ void on_activate (GtkApplication *app)
                    , G_CALLBACK(on_volume_change)
                    , NULL);
 
-    gtk_container_add (GTK_CONTAINER (window), volumeScale);
+    GtkWidget *wavesourceToggle = gtk_switch_new();
+    g_signal_connect(G_OBJECT(wavesourceToggle)
+                   , "state-set"
+                   , G_CALLBACK(on_wavesource_toggle)
+                   , NULL);
+
+    gtk_box_pack_end(GTK_BOX(box), volumeScale, TRUE, TRUE, 2);
+    gtk_box_pack_end(GTK_BOX(box), wavesourceToggle, FALSE, FALSE, 2);
+
     gtk_widget_show_all (window);
 
     // TODO: Get samplerate from Jack server.
@@ -227,7 +229,7 @@ void on_activate (GtkApplication *app)
     xcb_flush (xcbState.connection);
 
     pthread_t thread[1];
-    int threadReturnCode = pthread_create(thread, NULL, ui_thread, (void *)&xcbState);
+    int threadReturnCode = pthread_create(thread, NULL, xcb_thread, (void *)&xcbState);
 
 
 

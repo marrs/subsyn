@@ -150,16 +150,16 @@ int main()
     processedSignal.samples = processedSignalSamples;
     processedSignal.length = WAVETABLE_SIZE;
 
-    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = sinWavetable[x]; }
+    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = sinWavetable.samples[x]; }
     dft(dftSin, sourceSignal);
 
-    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = sawWavetable[x]; }
+    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = sawWavetable.samples[x]; }
     dft(dftSaw, sourceSignal);
 
-    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = pulWavetable[x]; }
+    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = pulWavetable.samples[x]; }
     dft(dftPul, sourceSignal);
 
-    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = triWavetable[x]; }
+    loop(x, WAVETABLE_SIZE) { sourceSignalSamples[x] = triWavetable.samples[x]; }
     dft(dftTri, sourceSignal);
 
     PlotParams params;
@@ -173,28 +173,28 @@ int main()
         }
 
         // Sine wave, time and freq domains.
-        sourceSignal.samples = sinWavetable;
+        sourceSignal.samples = sinWavetable.samples;
         plot_tdomain(1, 0, sourceSignal);
         plot_fdomain(0, dftSin);
         idft(processedSignal, dftSin);
         plot_tdomain(3, 0, processedSignal);
 
         // Saw wave, time and freq domains.
-        sourceSignal.samples = sawWavetable;
+        sourceSignal.samples = sawWavetable.samples;
         plot_tdomain(1, 1, sourceSignal);
         plot_fdomain(1, dftSaw);
         idft(processedSignal, dftSaw);
         plot_tdomain(3, 1, processedSignal);
 
         // Pulse wave, time and freq domains.
-        sourceSignal.samples = pulWavetable;
+        sourceSignal.samples = pulWavetable.samples;
         plot_tdomain(1, 2, sourceSignal);
         plot_fdomain(2, dftPul);
         idft(processedSignal, dftPul);
         plot_tdomain(3, 2, processedSignal);
 
         // Triangle wave, time and freq domains.
-        sourceSignal.samples = triWavetable;
+        sourceSignal.samples = triWavetable.samples;
         plot_tdomain(1, 3, sourceSignal);
         plot_fdomain(3, dftTri);
         idft(processedSignal, dftTri);

@@ -1,24 +1,38 @@
 #include <math.h>
+#include <stdio.h>
 #include "macro-utils.h"
 #include "signal-processors.h"
 #define WAVETABLE_SIZE 256
+
+typedef enum Generator {
+    GEN_Noise = 0,
+    GEN_Sawtooth,
+    GEN_Pulse,
+    GEN_Triangle,
+    GEN_Sine
+} Generator;
+
+typedef enum WavetableType {
+    WAVT_Wavetable = 0,
+    WAVT_Idft_Wavetable
+} WavetableType;
 
 typedef struct WavetableSample {
     float val;
     float offset;
 } WavetableSample;
 
-void scan_wavetable(TDomain wavetable, float wavelength, WavetableSample *sample)
+void scan_wavetable(WavetableSample *sample, float wavelength, TDomain *wavetable)
 {
-    sample->offset += (float)wavetable.length / wavelength;
-    if (sample->offset >= wavetable.length) {
-        sample->offset -= wavetable.length;
+    sample->offset += (float)wavetable->length / wavelength;
+    if (sample->offset >= wavetable->length) {
+        sample->offset -= wavetable->length;
     }
     int integerPart = (int)sample->offset;
     int decimalPart = integerPart - sample->offset;
 
-    float lowerBound = wavetable.samples[integerPart];
-    float upperBound = integerPart > 255? wavetable.samples[0] : wavetable.samples[integerPart +1];
+    float lowerBound = wavetable->samples[integerPart];
+    float upperBound = integerPart > 255? wavetable->samples[0] : wavetable->samples[integerPart +1];
 
     sample->val = lowerBound + (decimalPart * (upperBound - lowerBound));
 }
@@ -42,10 +56,10 @@ float _dftPulIm[WAVETABLE_SIZE/2];
 float _dftTriRe[WAVETABLE_SIZE/2];
 float _dftTriIm[WAVETABLE_SIZE/2];
 
-FDomain dftSin;
-FDomain dftSaw;
-FDomain dftPul;
-FDomain dftTri;
+FDomain dftSin = {WAVETABLE_SIZE /2, _dftSinRe, _dftSinIm};
+FDomain dftSaw = {WAVETABLE_SIZE /2, _dftSawRe, _dftSawIm};
+FDomain dftPul = {WAVETABLE_SIZE /2, _dftPulRe, _dftPulIm};
+FDomain dftTri = {WAVETABLE_SIZE /2, _dftTriRe, _dftTriIm};
 
 // These wavetables are to be generated
 // from an inverse Fourier transform.
@@ -93,4 +107,30 @@ void init_wavetables()
     idft(idftSawWavetable, dftSaw);
     idft(idftPulWavetable, dftPul);
     idft(idftTriWavetable, dftTri);
+}
+
+void select_wavetable(TDomain **pWavetable, Generator generator, WavetableType wtType)
+{
+    switch (generator) {
+        case GEN_Triangle: {
+            *pWavetable = wtType? &idftTriWavetable : &triWavetable;
+        } break;
+        case GEN_Pulse: {
+            *pWavetable = wtType? &idftPulWavetable : &pulWavetable;
+        } break;
+        case GEN_Sawtooth:
+        default: {
+            *pWavetable = wtType? &idftSawWavetable : &sawWavetable;
+        } break;
+    }
+}
+
+void cycle_generator(Generator *generator)
+{
+    switch(*generator) {
+        case GEN_Noise: *generator = GEN_Sawtooth; break;
+        case GEN_Sawtooth: *generator = GEN_Pulse; break;
+        case GEN_Pulse: *generator = GEN_Triangle; break;
+        case GEN_Triangle: *generator = GEN_Noise; break;
+    }
 }
