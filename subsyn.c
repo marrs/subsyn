@@ -25,6 +25,7 @@ typedef struct JackState {
 
 Generator uiSelectedGenerator = GEN_Noise;
 float uiVolume = 1.0f;
+float uiPitch = 440.0f;
 int samplerateHz;
 WavetableSample wtsample;
 TDomain *uiWavetable = &sawWavetable;
@@ -45,7 +46,7 @@ int process_audio(jack_nframes_t nframes, void *arg)
     rightChannel = (jack_default_audio_sample_t *)jack_port_get_buffer(jackState.rightPort, nframes);
 
     float val = 0.0f;
-    float pitchHz = 440;
+    float pitchHz = uiPitch;
     float wavelengthHz = samplerateHz / pitchHz;
     loop(i, nframes) {
         if (uiSelectedGenerator == GEN_Noise) {
@@ -123,6 +124,11 @@ void on_volume_change(GtkRange *widget, gpointer data)
     uiVolume = gtk_range_get_value(widget) / 10;
 }
 
+void on_pitch_change(GtkRange *widget, gpointer data)
+{
+    uiPitch = gtk_range_get_value(widget);
+}
+
 void on_wavesource_toggle(GtkSwitch *widget, gpointer data)
 {
     uiWavetableType = (WavetableType)gtk_switch_get_active(widget);
@@ -163,6 +169,21 @@ void on_activate (GtkApplication *app)
                    , G_CALLBACK(on_wavesource_toggle)
                    , NULL);
 
+    GtkWidget *pitchScale = gtk_scale_new(GTK_ORIENTATION_HORIZONTAL,
+                                           gtk_adjustment_new(
+                                                uiPitch // val
+                                              , 20  // lower
+                                              , 2000 // upper
+                                              , 1 // step inc
+                                              , 1 // page inc
+                                              , 1 // page size
+                                           ));
+    g_signal_connect(G_OBJECT(pitchScale)
+                   , "value-changed"
+                   , G_CALLBACK(on_pitch_change)
+                   , NULL);
+
+    gtk_box_pack_end(GTK_BOX(box), pitchScale, TRUE, TRUE, 2);
     gtk_box_pack_end(GTK_BOX(box), volumeScale, TRUE, TRUE, 2);
     gtk_box_pack_end(GTK_BOX(box), wavesourceToggle, FALSE, FALSE, 2);
 
