@@ -103,10 +103,10 @@ void init_wavetables()
     dft(dftPul, pulWavetable);
     dft(dftTri, triWavetable);
 
-    idft(idftSinWavetable, dftSin);
-    idft(idftSawWavetable, dftSaw);
-    idft(idftPulWavetable, dftPul);
-    idft(idftTriWavetable, dftTri);
+    idft(&idftSinWavetable, dftSin);
+    idft(&idftSawWavetable, dftSaw);
+    idft(&idftPulWavetable, dftPul);
+    idft(&idftTriWavetable, dftTri);
 }
 
 void select_wavetable(TDomain **pWavetable, Generator generator, WavetableType wtType)
@@ -121,6 +121,22 @@ void select_wavetable(TDomain **pWavetable, Generator generator, WavetableType w
         case GEN_Sawtooth:
         default: {
             *pWavetable = wtType? &idftSawWavetable : &sawWavetable;
+        } break;
+    }
+}
+
+void select_dft(FDomain **pDft, Generator generator)
+{
+    switch (generator) {
+        case GEN_Triangle: {
+            *pDft = &dftTri;
+        } break;
+        case GEN_Pulse: {
+            *pDft = &dftPul;
+        } break;
+        case GEN_Sawtooth:
+        default: {
+            *pDft = &dftSaw;
         } break;
     }
 }

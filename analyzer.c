@@ -176,28 +176,28 @@ int main()
         sourceSignal.samples = sinWavetable.samples;
         plot_tdomain(1, 0, sourceSignal);
         plot_fdomain(0, dftSin);
-        idft(processedSignal, dftSin);
+        idft(&processedSignal, dftSin);
         plot_tdomain(3, 0, processedSignal);
 
         // Saw wave, time and freq domains.
         sourceSignal.samples = sawWavetable.samples;
         plot_tdomain(1, 1, sourceSignal);
         plot_fdomain(1, dftSaw);
-        idft(processedSignal, dftSaw);
+        idft(&processedSignal, dftSaw);
         plot_tdomain(3, 1, processedSignal);
 
         // Pulse wave, time and freq domains.
         sourceSignal.samples = pulWavetable.samples;
         plot_tdomain(1, 2, sourceSignal);
         plot_fdomain(2, dftPul);
-        idft(processedSignal, dftPul);
+        idft(&processedSignal, dftPul);
         plot_tdomain(3, 2, processedSignal);
 
         // Triangle wave, time and freq domains.
         sourceSignal.samples = triWavetable.samples;
         plot_tdomain(1, 3, sourceSignal);
         plot_fdomain(3, dftTri);
-        idft(processedSignal, dftTri);
+        idft(&processedSignal, dftTri);
         plot_tdomain(3, 3, processedSignal);
 
         xcb_flush (xcbState.connection);

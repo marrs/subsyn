@@ -11,6 +11,6 @@ typedef struct TDomain {
 } TDomain;
 
 void dft(FDomain fDomain, TDomain signal);
-void idft(TDomain signal, FDomain dft);
+void idft(TDomain *signal, FDomain dft);
 #define __SIGNAL_PROCESSORS_H__
 #endif

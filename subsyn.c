@@ -26,10 +26,19 @@ typedef struct JackState {
 Generator uiSelectedGenerator = GEN_Noise;
 float uiVolume = 1.0f;
 float uiPitch = 440.0f;
+float uiCutoff = 20000.0f;
+FDomain *uiCleanDft = &dftSaw;
+TDomain *uiWavetable = &sawWavetable; // Unsused for now. Keeping for when we test FFT.
 int samplerateHz;
 WavetableSample wtsample;
-TDomain *uiWavetable = &sawWavetable;
+float wavetableSamples[WAVETABLE_SIZE];
 WavetableType uiWavetableType = WAVT_Wavetable;
+TDomain processedWavetable;
+
+
+float _processedDftRe[128];
+float _processedDftIm[128];
+FDomain processedDft;
 
 JackState jackState;
 XcbState xcbState;
@@ -46,13 +55,22 @@ int process_audio(jack_nframes_t nframes, void *arg)
     rightChannel = (jack_default_audio_sample_t *)jack_port_get_buffer(jackState.rightPort, nframes);
 
     float val = 0.0f;
+    // TODO: Just use ui versions if we can.
     float pitchHz = uiPitch;
+    float cutoffHz = uiCutoff;
     float wavelengthHz = samplerateHz / pitchHz;
     loop(i, nframes) {
         if (uiSelectedGenerator == GEN_Noise) {
             val = (float)rand() / RAND_MAX;
         } else {
-            scan_wavetable(&wtsample, wavelengthHz, uiWavetable);
+            filter_cliffedge(uiCleanDft, &processedDft, pitchHz, cutoffHz);
+            TDomain wavetable;
+            wavetable.length = WAVETABLE_SIZE;
+            wavetable.samples = wavetableSamples;
+            idft(&wavetable, processedDft);
+            //idft(&wavetable, *uiCleanDft);
+            //scan_wavetable(&wtsample, wavelengthHz, &sawWavetable);
+            scan_wavetable(&wtsample, wavelengthHz, &wavetable);
             val = 0.5 + wtsample.val;
         }
         val *= uiVolume;
@@ -75,13 +93,10 @@ void *xcb_thread(void *arg)
         switch (event->response_type & ~0x80) {
             case XCB_KEY_RELEASE: {
                 xcb_key_release_event_t *kr = (xcb_key_release_event_t *)event;
-                //print_modifiers(kr->state);
                 printf ("Key released in window %"PRIu32"\n",
                         kr->event);
                 cycle_generator(&uiSelectedGenerator);
-                printf("BEFORE %u\n", uiWavetable);
-                select_wavetable(&uiWavetable, uiSelectedGenerator, uiWavetableType);
-                printf("AFTER %u\n", uiWavetable);
+                select_dft(&uiCleanDft, uiSelectedGenerator);
             } break;
         }
     }
@@ -113,7 +128,7 @@ gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer data)
 {
     if (event->keyval == GDK_KEY_space){
         cycle_generator(&uiSelectedGenerator);
-        select_wavetable(&uiWavetable, uiSelectedGenerator, uiWavetableType);
+        select_dft(&uiCleanDft, uiSelectedGenerator);
         return TRUE;
     }
     return FALSE;
@@ -129,6 +144,12 @@ void on_pitch_change(GtkRange *widget, gpointer data)
     uiPitch = gtk_range_get_value(widget);
 }
 
+void on_cutoff_change(GtkRange *widget, gpointer data)
+{
+    uiCutoff = gtk_range_get_value(widget);
+}
+
+/*
 void on_wavesource_toggle(GtkSwitch *widget, gpointer data)
 {
     uiWavetableType = (WavetableType)gtk_switch_get_active(widget);
@@ -136,9 +157,13 @@ void on_wavesource_toggle(GtkSwitch *widget, gpointer data)
                      uiSelectedGenerator,
                      uiWavetableType);
 }
+*/
 
-void on_activate (GtkApplication *app)
+void on_activate(GtkApplication *app)
 {
+    processedDft.re = _processedDftRe;
+    processedDft.im = _processedDftIm;
+
     GtkWidget *window = gtk_application_window_new(app);
     GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(box));
@@ -163,11 +188,14 @@ void on_activate (GtkApplication *app)
                    , G_CALLBACK(on_volume_change)
                    , NULL);
 
+    // For testing of DFT implementations
+    /*
     GtkWidget *wavesourceToggle = gtk_switch_new();
     g_signal_connect(G_OBJECT(wavesourceToggle)
                    , "state-set"
                    , G_CALLBACK(on_wavesource_toggle)
                    , NULL);
+   */
 
     GtkWidget *pitchScale = gtk_scale_new(GTK_ORIENTATION_HORIZONTAL,
                                            gtk_adjustment_new(
@@ -183,9 +211,24 @@ void on_activate (GtkApplication *app)
                    , G_CALLBACK(on_pitch_change)
                    , NULL);
 
+    GtkWidget *cutoffScale = gtk_scale_new(GTK_ORIENTATION_HORIZONTAL,
+                                           gtk_adjustment_new(
+                                                uiCutoff // val
+                                              , 20  // lower
+                                              , 20000 // upper
+                                              , 1 // step inc
+                                              , 1 // page inc
+                                              , 1 // page size
+                                           ));
+    g_signal_connect(G_OBJECT(cutoffScale)
+                   , "value-changed"
+                   , G_CALLBACK(on_cutoff_change)
+                   , NULL);
+
     gtk_box_pack_end(GTK_BOX(box), pitchScale, TRUE, TRUE, 2);
     gtk_box_pack_end(GTK_BOX(box), volumeScale, TRUE, TRUE, 2);
-    gtk_box_pack_end(GTK_BOX(box), wavesourceToggle, FALSE, FALSE, 2);
+    gtk_box_pack_end(GTK_BOX(box), cutoffScale, TRUE, TRUE, 2);
+    //gtk_box_pack_end(GTK_BOX(box), wavesourceToggle, FALSE, FALSE, 2);
 
     gtk_widget_show_all (window);
 
@@ -263,6 +306,8 @@ void on_activate (GtkApplication *app)
 	jackState.client = jack_client_open(jcName, jcOptions, &jcStatus, jcServerName);
     jack_client_t *jackClient = jackState.client;
 
+    jack_set_buffer_size(jackClient, 2048 * 2);
+
     die_if(NULL == jackClient, {
 		fprintf (stderr, "jack_client_open() failed, "
 			 "status = 0x%2.0x\n", jcStatus);
@@ -291,7 +336,7 @@ void on_activate (GtkApplication *app)
                                              JackPortIsOutput, 0);
 
     die_if(NULL == jackState.leftPort || NULL == jackState.rightPort,
-            fprintf(stderr, "Could not connect to Jack")
+        fprintf(stderr, "Could not connect to Jack")
     );
 
     die_if(jack_activate(jackClient),
